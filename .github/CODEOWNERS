@@ -1,0 +1,45 @@
+# ============================================================
+# RASID NEXUS — CODEOWNERS
+# Governance Baseline — Phase 0.0
+# ============================================================
+# This file defines code ownership for pull request reviews.
+# All changes require approval from designated owners.
+# ============================================================
+
+# --- Global Ownership (fallback) ---
+*                       @raneemndmo-collab/rasid-security
+
+# --- Kernel Ownership ---
+/kernel/                @raneemndmo-collab/rasid-kernel
+
+# --- Module Ownership ---
+/modules/               @raneemndmo-collab/rasid-modules
+
+# --- Document Ownership ---
+/document/              @raneemndmo-collab/rasid-modules
+
+# --- Hybrid Ownership ---
+/hybrid/                @raneemndmo-collab/rasid-hybrid
+
+# --- Shared Ownership ---
+/shared/                @raneemndmo-collab/rasid-kernel @raneemndmo-collab/rasid-modules
+
+# --- Infrastructure Ownership ---
+/infra/                 @raneemndmo-collab/rasid-infra
+
+# --- CI/CD Pipeline Ownership ---
+/.github/               @raneemndmo-collab/rasid-infra @raneemndmo-collab/rasid-security
+
+# --- Documentation Ownership ---
+/docs/                  @raneemndmo-collab/rasid-security
+
+# --- Test Ownership ---
+/tests/                 @raneemndmo-collab/rasid-kernel @raneemndmo-collab/rasid-modules
+
+# --- Scripts Ownership ---
+/scripts/               @raneemndmo-collab/rasid-infra
+
+# --- Security-Critical Files ---
+/CODEOWNERS             @raneemndmo-collab/rasid-security
+/Execution_Lock.md      @raneemndmo-collab/rasid-security
+/Governance_Summary.md  @raneemndmo-collab/rasid-security
