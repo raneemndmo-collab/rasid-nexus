@@ -133,10 +133,29 @@ The user or role executing `terraform apply` requires the following permissions.
 
 ## 3. Destruction (Rollback) Plan
 
-To tear down all resources created by this Terraform configuration, run the following command from the `infra/terraform` directory:
+**Production environments are protected by default.** The `enable_deletion_protection` variable must be explicitly set to `false` before destruction is possible.
 
+**Step 1: Disable Protection**
 ```bash
-terraform destroy -auto-approve
+# Update terraform.tfvars:
+enable_deletion_protection = false
+
+# Apply the change:
+terraform apply -target=null_resource.destruction_guard
 ```
 
-**Warning:** This will permanently delete the EKS cluster, all associated nodes, and all networking resources. Data stored in the cluster will be lost. This action is irreversible.
+**Step 2: Plan Destruction (Review)**
+```bash
+terraform plan -destroy
+```
+Review the destruction plan carefully. Confirm every resource listed.
+
+**Step 3: Execute Destruction (Manual Confirmation Required)**
+```bash
+terraform destroy
+```
+Terraform will prompt for manual confirmation. Type `yes` only after reviewing the plan.
+
+**WARNING:** `-auto-approve` is PROHIBITED for destruction operations. Manual confirmation is mandatory.
+
+**WARNING:** This will permanently delete the EKS cluster, all associated nodes, all networking resources, and all data stored in the cluster. This action is irreversible.

@@ -30,3 +30,23 @@
 # node_min_size        = 3
 # node_max_size        = 5
 # node_disk_size       = 50
+
+# ============================================================
+# Security Hardening
+# ============================================================
+
+# enable_public_endpoint = false
+# allowed_public_cidrs   = []  # e.g., ["203.0.113.0/32"] for specific admin IP
+
+# ============================================================
+# Cost Guardrails
+# ============================================================
+
+# budget_monthly_limit_usd = 500
+# budget_alert_emails      = ["admin@example.com"]
+
+# ============================================================
+# Destruction Safeguard
+# ============================================================
+
+# enable_deletion_protection = true

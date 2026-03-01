@@ -41,3 +41,15 @@ variable "node_max_size" {
 variable "node_disk_size" {
   type = number
 }
+
+variable "enable_public_endpoint" {
+  description = "Enable public API endpoint (set false for private-only access)"
+  type        = bool
+  default     = false
+}
+
+variable "allowed_public_cidrs" {
+  description = "CIDR blocks allowed to access public endpoint (if enabled)"
+  type        = list(string)
+  default     = []
+}

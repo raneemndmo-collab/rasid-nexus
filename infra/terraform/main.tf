@@ -89,7 +89,9 @@ module "eks" {
   node_desired_size    = var.node_desired_size
   node_min_size        = var.node_min_size
   node_max_size        = var.node_max_size
-  node_disk_size       = var.node_disk_size
+  node_disk_size          = var.node_disk_size
+  enable_public_endpoint  = var.enable_public_endpoint
+  allowed_public_cidrs    = var.allowed_public_cidrs
 }
 
 # ============================================================
@@ -105,4 +107,6 @@ module "k8s_config" {
   cluster_ca_certificate = module.eks.cluster_ca_certificate
   cluster_auth_token     = module.eks.cluster_auth_token
   cluster_name           = module.eks.cluster_name
+  oidc_provider_arn      = module.eks.oidc_provider_arn
+  oidc_issuer            = replace(module.eks.oidc_issuer_url, "https://", "")
 }
