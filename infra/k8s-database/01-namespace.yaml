@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rasid-database
+  labels:
+    tier: data
+    component: postgresql
+    isolation: strict
