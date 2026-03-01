@@ -1,0 +1,73 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pg-tls-generator-script
+  namespace: rasid-database
+data:
+  generate-certs.sh: |
+    #!/bin/sh
+    set -e
+    cd /certs
+
+    # Generate CA
+    openssl genrsa -out ca.key 4096
+    openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 \
+      -out ca.crt -subj "/CN=RASID-DB-CA/O=RASID/OU=Database"
+
+    # Generate server certificate
+    openssl genrsa -out server.key 4096
+    openssl req -new -key server.key \
+      -out server.csr -subj "/CN=rasid-pg.rasid-database.svc.cluster.local/O=RASID/OU=Database"
+
+    cat > server-ext.cnf <<EXTEOF
+    authorityKeyIdentifier=keyid,issuer
+    basicConstraints=CA:FALSE
+    keyUsage=digitalSignature,keyEncipherment
+    extendedKeyUsage=serverAuth
+    subjectAltName=@alt_names
+    [alt_names]
+    DNS.1=rasid-pg
+    DNS.2=rasid-pg.rasid-database
+    DNS.3=rasid-pg.rasid-database.svc
+    DNS.4=rasid-pg.rasid-database.svc.cluster.local
+    DNS.5=localhost
+    IP.1=127.0.0.1
+    EXTEOF
+
+    openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key \
+      -CAcreateserial -out server.crt -days 3650 -sha256 \
+      -extfile server-ext.cnf
+
+    chmod 600 server.key
+    chmod 644 server.crt ca.crt
+
+    echo "TLS certificates generated successfully"
+    ls -la /certs/
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pg-tls-generator
+  namespace: rasid-database
+spec:
+  template:
+    spec:
+      containers:
+      - name: certgen
+        image: alpine/openssl:latest
+        command: ["/bin/sh", "/scripts/generate-certs.sh"]
+        volumeMounts:
+        - name: certs
+          mountPath: /certs
+        - name: script
+          mountPath: /scripts
+      volumes:
+      - name: certs
+        emptyDir: {}
+      - name: script
+        configMap:
+          name: pg-tls-generator-script
+          defaultMode: 0755
+      restartPolicy: Never
+  backoffLimit: 3
