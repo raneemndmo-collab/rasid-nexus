@@ -3,7 +3,7 @@
  * Phase 0 Block B — EU-0B-001
  *
  * All kernel-level event types and their payloads.
- * These events are published to the NATS event bus.
+ * These events are published to the kernel event bus.
  */
 
 import {

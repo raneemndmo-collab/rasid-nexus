@@ -46,7 +46,7 @@ kernel/
 
 ## Module Communication
 
-Modules communicate exclusively through the kernel event bus (NATS JetStream):
+Modules communicate exclusively through the kernel event bus:
 
 1. **Module → Kernel:** Via service interfaces (dependency injection)
 2. **Kernel → Module:** Via event subscriptions (pub/sub)

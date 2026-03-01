@@ -3,7 +3,7 @@
  * Phase 0 Block B — EU-0B-001
  *
  * Defines the contract for kernel-to-module event communication.
- * All events flow through the NATS JetStream event bus.
+ * All events flow through the kernel event bus.
  * This contract ensures type-safe, tenant-isolated event handling.
  */
 
@@ -49,7 +49,7 @@ export interface IEventBus {
    * Used only when async is not feasible.
    */
   request(
-    subject: string,
+    topic: string,
     payload: Record<string, unknown>,
     timeoutMs: number,
   ): Promise<Result<Record<string, unknown>>>;
@@ -92,10 +92,10 @@ export interface SubscriptionOptions {
   readonly group?: string;
 
   /**
-   * Durable consumer name for persistent subscriptions.
+   * Persistent subscription identifier.
    * Survives consumer restarts.
    */
-  readonly durable?: string;
+  readonly persistentId?: string;
 
   /**
    * Maximum number of redelivery attempts before DLQ.
@@ -144,6 +144,6 @@ export interface EventMetadata {
   readonly publishedAt: Date;
   readonly deliveredAt: Date;
   readonly deliveryAttempt: number;
-  readonly stream: string;
+  readonly partition: string;
   readonly sequence: number;
 }

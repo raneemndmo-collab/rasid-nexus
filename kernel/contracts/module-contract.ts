@@ -103,9 +103,9 @@ export interface ModuleBootstrapContext {
   readonly getDatabaseUrl: () => string;
 
   /**
-   * Get the module's assigned NATS subject prefix.
+   * Get the module's assigned event topic prefix.
    */
-  readonly getEventSubjectPrefix: () => string;
+  readonly getEventTopicPrefix: () => string;
 }
 
 // ─── Supporting Types ──────────────────────────────────────

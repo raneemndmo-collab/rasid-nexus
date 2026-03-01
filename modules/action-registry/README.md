@@ -15,6 +15,6 @@ It tracks all actions performed across the RASID Nexus platform.
 
 Uses the dedicated `rasid_action_registry` PostgreSQL database with RLS.
 
-## NATS Streams
+## Event Topics
 
 - `kernel-actions` — action lifecycle events
