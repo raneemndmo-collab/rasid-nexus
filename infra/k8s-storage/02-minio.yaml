@@ -1,0 +1,148 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+  namespace: rasid-storage
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rasid-minio
+  namespace: rasid-storage
+  labels:
+    app: rasid-minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rasid-minio
+  template:
+    metadata:
+      labels:
+        app: rasid-minio
+    spec:
+      initContainers:
+        - name: tls-gen
+          image: alpine:3.19
+          command:
+            - sh
+            - -c
+            - |
+              apk add --no-cache openssl > /dev/null 2>&1
+              mkdir -p /certs/CAs
+              # Generate CA
+              openssl genrsa -out /tmp/ca.key 4096
+              openssl req -x509 -new -nodes -key /tmp/ca.key -sha256 -days 3650 \
+                -out /certs/CAs/ca.crt -subj "/CN=RASID Storage CA/O=RASID"
+              # Generate server cert (MinIO expects public.crt and private.key)
+              openssl genrsa -out /certs/private.key 4096
+              cat > /tmp/san.cnf <<'SANEOF'
+              [req]
+              distinguished_name = req_dn
+              req_extensions = v3_req
+              [req_dn]
+              CN = rasid-minio
+              [v3_req]
+              subjectAltName = DNS:rasid-minio,DNS:rasid-minio.rasid-storage,DNS:rasid-minio.rasid-storage.svc,DNS:rasid-minio.rasid-storage.svc.cluster.local,DNS:localhost,IP:127.0.0.1
+              SANEOF
+              openssl req -new -key /certs/private.key -out /tmp/server.csr \
+                -subj "/CN=rasid-minio/O=RASID" -config /tmp/san.cnf
+              openssl x509 -req -in /tmp/server.csr -CA /certs/CAs/ca.crt -CAkey /tmp/ca.key \
+                -CAcreateserial -out /certs/public.crt -days 3650 -sha256 \
+                -extfile /tmp/san.cnf -extensions v3_req
+              chmod 644 /certs/public.crt /certs/CAs/ca.crt
+              chmod 600 /certs/private.key
+              ls -laR /certs/
+              echo "TLS certs generated successfully"
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /certs
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2024-11-07T00-52-20Z
+          args:
+            - server
+            - /data
+            - --console-address
+            - ":9001"
+            - --certs-dir
+            - /certs
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio-admin-creds
+                  key: root-user
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio-admin-creds
+                  key: root-password
+            - name: MINIO_BROWSER
+              value: "on"
+            - name: MINIO_KMS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: minio-encryption-key
+                  key: MINIO_KMS_SECRET_KEY
+          ports:
+            - containerPort: 9000
+              name: api
+            - containerPort: 9001
+              name: console
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: 9000
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: 9000
+              scheme: HTTPS
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: minio-data
+              mountPath: /data
+            - name: tls-certs
+              mountPath: /certs
+      volumes:
+        - name: minio-data
+          persistentVolumeClaim:
+            claimName: minio-data
+        - name: tls-certs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rasid-minio
+  namespace: rasid-storage
+spec:
+  selector:
+    app: rasid-minio
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9001
+      targetPort: 9001
+  type: ClusterIP
