@@ -1,0 +1,194 @@
+##############################################################
+# RASID NEXUS — CI Pipeline Skeleton
+# Governance Baseline — Phase 0.0
+##############################################################
+# Stages:
+#   S1: Commit format validation
+#   S2: Static analysis placeholder
+#   S3: Build placeholder
+#   S4: Unit test placeholder
+#   S5: Security scan placeholder
+#   S6: Drift detection placeholder
+#   S7: Freeze verification placeholder
+##############################################################
+
+name: RASID Nexus CI Pipeline
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [develop]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  FORBIDDEN_PATTERNS: "TODO|FIXME|HACK|XXX|NOCOMMIT|DO_NOT_MERGE"
+  COMMIT_FORMAT: "^(feat|fix|chore|docs|refactor|test|ci|perf|build|style)\\(.+\\):.+\\[.+\\-[0-9]+\\]$"
+
+jobs:
+  # ============================================================
+  # S1: Commit Format Validation
+  # ============================================================
+  s1-commit-format:
+    name: "S1 — Commit Format Validation"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate commit message format
+        run: |
+          echo "=== S1: Commit Format Validation ==="
+          FAILED=0
+          COMMITS=$(git log --format='%s' origin/main..HEAD 2>/dev/null || git log --format='%s' -1)
+          while IFS= read -r MSG; do
+            if [ -z "$MSG" ]; then continue; fi
+            if ! echo "$MSG" | grep -qP '${{ env.COMMIT_FORMAT }}'; then
+              echo "FAIL: Invalid commit format: $MSG"
+              echo "Expected: type(scope): description [TICKET-000]"
+              FAILED=1
+            fi
+          done <<< "$COMMITS"
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::Commit format validation failed. All commits must match: type(scope): description [TICKET-000]"
+            exit 1
+          fi
+          echo "All commit messages conform to required format."
+
+      - name: Check for forbidden patterns
+        run: |
+          echo "=== S1: Forbidden Pattern Detection ==="
+          FOUND=$(grep -rn --include='*.ts' --include='*.js' --include='*.py' --include='*.yml' --include='*.yaml' --include='*.md' \
+            -E '${{ env.FORBIDDEN_PATTERNS }}' . \
+            --exclude-dir=.git --exclude-dir=node_modules || true)
+          if [ -n "$FOUND" ]; then
+            echo "$FOUND"
+            echo "::error::Forbidden patterns detected in codebase."
+            exit 1
+          fi
+          echo "No forbidden patterns found."
+
+      - name: Verify ticket reference
+        run: |
+          echo "=== S1: Ticket Reference Verification ==="
+          COMMITS=$(git log --format='%s' origin/main..HEAD 2>/dev/null || git log --format='%s' -1)
+          FAILED=0
+          while IFS= read -r MSG; do
+            if [ -z "$MSG" ]; then continue; fi
+            if ! echo "$MSG" | grep -qP '\[.+\-[0-9]+\]'; then
+              echo "FAIL: Missing ticket reference in: $MSG"
+              FAILED=1
+            fi
+          done <<< "$COMMITS"
+          if [ "$FAILED" -eq 1 ]; then
+            echo "::error::All commits must include a ticket reference [TICKET-000]."
+            exit 1
+          fi
+          echo "All commits include valid ticket references."
+
+  # ============================================================
+  # S2: Static Analysis Placeholder
+  # ============================================================
+  s2-static-analysis:
+    name: "S2 — Static Analysis"
+    runs-on: ubuntu-latest
+    needs: s1-commit-format
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Static analysis placeholder
+        run: |
+          echo "=== S2: Static Analysis ==="
+          echo "Static analysis stage — awaiting tool integration."
+          echo "Linters and formatters will be configured in Phase 1."
+
+  # ============================================================
+  # S3: Build Placeholder
+  # ============================================================
+  s3-build:
+    name: "S3 — Build"
+    runs-on: ubuntu-latest
+    needs: s2-static-analysis
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build placeholder
+        run: |
+          echo "=== S3: Build ==="
+          echo "Build stage — awaiting project build configuration."
+          echo "Build toolchain will be configured in Phase 1."
+
+  # ============================================================
+  # S4: Unit Test Placeholder
+  # ============================================================
+  s4-unit-test:
+    name: "S4 — Unit Tests"
+    runs-on: ubuntu-latest
+    needs: s3-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Unit test placeholder
+        run: |
+          echo "=== S4: Unit Tests ==="
+          echo "Unit test stage — awaiting test framework integration."
+          echo "Test suites will be configured in Phase 1."
+
+  # ============================================================
+  # S5: Security Scan Placeholder
+  # ============================================================
+  s5-security-scan:
+    name: "S5 — Security Scan"
+    runs-on: ubuntu-latest
+    needs: s4-unit-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Security scan placeholder
+        run: |
+          echo "=== S5: Security Scan ==="
+          echo "Security scan stage — awaiting scanner integration."
+          echo "SAST/DAST tools will be configured in Phase 1."
+
+  # ============================================================
+  # S6: Drift Detection Placeholder
+  # ============================================================
+  s6-drift-detection:
+    name: "S6 — Drift Detection"
+    runs-on: ubuntu-latest
+    needs: s5-security-scan
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Drift detection placeholder
+        run: |
+          echo "=== S6: Drift Detection ==="
+          echo "Drift detection stage — awaiting baseline configuration."
+          echo "Infrastructure drift checks will be configured in Phase 1."
+
+  # ============================================================
+  # S7: Freeze Verification Placeholder
+  # ============================================================
+  s7-freeze-verification:
+    name: "S7 — Freeze Verification"
+    runs-on: ubuntu-latest
+    needs: s6-drift-detection
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Freeze verification placeholder
+        run: |
+          echo "=== S7: Freeze Verification ==="
+          echo "Freeze verification stage — awaiting freeze schedule configuration."
+          echo "Deployment freeze windows will be configured in Phase 1."
