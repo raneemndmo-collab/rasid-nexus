@@ -1,0 +1,189 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nats-jetstream-data
+  namespace: rasid-eventbus
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: do-block-storage-retain
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rasid-nats
+  namespace: rasid-eventbus
+  labels:
+    app: rasid-nats
+    tier: messaging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rasid-nats
+  template:
+    metadata:
+      labels:
+        app: rasid-nats
+        tier: messaging
+    spec:
+      initContainers:
+      - name: tls-generator
+        image: alpine/openssl:latest
+        command: ["/bin/sh", "/scripts/generate-certs.sh"]
+        volumeMounts:
+        - name: tls-certs
+          mountPath: /tls-output
+        - name: tls-script
+          mountPath: /scripts
+      - name: config-renderer
+        image: busybox:1.36
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          cp /etc/nats-template/nats.conf /etc/nats-rendered/nats.conf
+          # Replace password placeholders with actual passwords from secrets
+          sed -i "s|\$KERNEL_PASS|$(cat /secrets/kernel/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$AUTH_PASS|$(cat /secrets/auth/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$AUDIT_PASS|$(cat /secrets/audit/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$DOCUMENTS_PASS|$(cat /secrets/documents/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$WORKFLOW_PASS|$(cat /secrets/workflow/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$NOTIFICATIONS_PASS|$(cat /secrets/notifications/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$ANALYTICS_PASS|$(cat /secrets/analytics/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$INTEGRATION_PASS|$(cat /secrets/integration/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$COMPLIANCE_PASS|$(cat /secrets/compliance/password)|g" /etc/nats-rendered/nats.conf
+          sed -i "s|\$CONFIG_PASS|$(cat /secrets/config/password)|g" /etc/nats-rendered/nats.conf
+          echo "Config rendered successfully"
+        volumeMounts:
+        - name: nats-config-template
+          mountPath: /etc/nats-template
+        - name: nats-config-rendered
+          mountPath: /etc/nats-rendered
+        - name: secret-kernel
+          mountPath: /secrets/kernel
+        - name: secret-auth
+          mountPath: /secrets/auth
+        - name: secret-audit
+          mountPath: /secrets/audit
+        - name: secret-documents
+          mountPath: /secrets/documents
+        - name: secret-workflow
+          mountPath: /secrets/workflow
+        - name: secret-notifications
+          mountPath: /secrets/notifications
+        - name: secret-analytics
+          mountPath: /secrets/analytics
+        - name: secret-integration
+          mountPath: /secrets/integration
+        - name: secret-compliance
+          mountPath: /secrets/compliance
+        - name: secret-config
+          mountPath: /secrets/config
+      containers:
+      - name: nats
+        image: nats:2.10-alpine
+        args:
+        - "--config"
+        - "/etc/nats/nats.conf"
+        ports:
+        - containerPort: 4222
+          name: client
+        - containerPort: 8222
+          name: monitor
+        volumeMounts:
+        - name: tls-certs
+          mountPath: /etc/nats/tls
+          readOnly: true
+        - name: nats-config-rendered
+          mountPath: /etc/nats
+        - name: jetstream-data
+          mountPath: /data/jetstream
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8222
+          initialDelaySeconds: 10
+          periodSeconds: 15
+      volumes:
+      - name: tls-certs
+        emptyDir: {}
+      - name: tls-script
+        configMap:
+          name: nats-tls-script
+          defaultMode: 0755
+      - name: nats-config-template
+        configMap:
+          name: nats-config
+      - name: nats-config-rendered
+        emptyDir: {}
+      - name: jetstream-data
+        persistentVolumeClaim:
+          claimName: nats-jetstream-data
+      - name: secret-kernel
+        secret:
+          secretName: nats-creds-kernel
+      - name: secret-auth
+        secret:
+          secretName: nats-creds-auth
+      - name: secret-audit
+        secret:
+          secretName: nats-creds-audit
+      - name: secret-documents
+        secret:
+          secretName: nats-creds-documents
+      - name: secret-workflow
+        secret:
+          secretName: nats-creds-workflow
+      - name: secret-notifications
+        secret:
+          secretName: nats-creds-notifications
+      - name: secret-analytics
+        secret:
+          secretName: nats-creds-analytics
+      - name: secret-integration
+        secret:
+          secretName: nats-creds-integration
+      - name: secret-compliance
+        secret:
+          secretName: nats-creds-compliance
+      - name: secret-config
+        secret:
+          secretName: nats-creds-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rasid-nats
+  namespace: rasid-eventbus
+  labels:
+    app: rasid-nats
+spec:
+  type: ClusterIP
+  ports:
+  - port: 4222
+    targetPort: 4222
+    protocol: TCP
+    name: client
+  - port: 8222
+    targetPort: 8222
+    protocol: TCP
+    name: monitor
+  selector:
+    app: rasid-nats

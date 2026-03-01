@@ -1,0 +1,265 @@
+---
+# TLS Certificate Generator
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-tls-script
+  namespace: rasid-eventbus
+data:
+  generate-certs.sh: |
+    #!/bin/sh
+    set -e
+    cd /tls-output
+
+    # Generate CA
+    openssl genrsa -out ca.key 4096
+    openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 \
+      -out ca.crt -subj "/CN=RASID-EVENTBUS-CA/O=RASID/OU=EventBus"
+
+    # Generate server certificate
+    openssl genrsa -out server.key 4096
+    openssl req -new -key server.key \
+      -out server.csr -subj "/CN=rasid-nats.rasid-eventbus.svc.cluster.local/O=RASID/OU=EventBus"
+
+    cat > /tmp/server-ext.cnf <<EXTEOF
+    authorityKeyIdentifier=keyid,issuer
+    basicConstraints=CA:FALSE
+    keyUsage=digitalSignature,keyEncipherment
+    extendedKeyUsage=serverAuth
+    subjectAltName=@alt_names
+    [alt_names]
+    DNS.1=rasid-nats
+    DNS.2=rasid-nats.rasid-eventbus
+    DNS.3=rasid-nats.rasid-eventbus.svc
+    DNS.4=rasid-nats.rasid-eventbus.svc.cluster.local
+    DNS.5=localhost
+    IP.1=127.0.0.1
+    EXTEOF
+
+    openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key \
+      -CAcreateserial -out server.crt -days 3650 -sha256 \
+      -extfile /tmp/server-ext.cnf
+
+    chmod 600 server.key
+    chmod 644 server.crt ca.crt
+
+    echo "NATS TLS certificates generated"
+    ls -la /tls-output/
+---
+# NATS Configuration with Auth, JetStream, ACLs
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: rasid-eventbus
+data:
+  nats.conf: |
+    # Server identity
+    server_name: rasid-nats-0
+
+    # Listening
+    port: 4222
+    monitor_port: 8222
+
+    # TLS
+    tls {
+      cert_file: "/etc/nats/tls/server.crt"
+      key_file: "/etc/nats/tls/server.key"
+      ca_file: "/etc/nats/tls/ca.crt"
+      verify: false
+      timeout: 5
+    }
+
+    # JetStream (persistent messaging)
+    jetstream {
+      store_dir: "/data/jetstream"
+      max_mem: 256M
+      max_file: 2G
+    }
+
+    # Authorization — per-user ACLs
+    authorization {
+      users: [
+        # Kernel service — publish/subscribe to kernel topics only
+        {
+          user: "svc_kernel"
+          password: "$KERNEL_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.kernel.>", "rasid.kernel.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.kernel.>", "rasid.kernel.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Auth service
+        {
+          user: "svc_auth"
+          password: "$AUTH_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.auth.>", "rasid.auth.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.auth.>", "rasid.auth.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Audit service
+        {
+          user: "svc_audit"
+          password: "$AUDIT_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.audit.>", "rasid.audit.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.audit.>", "rasid.audit.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Documents service
+        {
+          user: "svc_documents"
+          password: "$DOCUMENTS_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.documents.>", "rasid.documents.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.documents.>", "rasid.documents.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Workflow service
+        {
+          user: "svc_workflow"
+          password: "$WORKFLOW_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.workflow.>", "rasid.workflow.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.workflow.>", "rasid.workflow.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Notifications service
+        {
+          user: "svc_notifications"
+          password: "$NOTIFICATIONS_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.notifications.>", "rasid.notifications.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.notifications.>", "rasid.notifications.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Analytics service
+        {
+          user: "svc_analytics"
+          password: "$ANALYTICS_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.analytics.>", "rasid.analytics.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.analytics.>", "rasid.analytics.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Integration service
+        {
+          user: "svc_integration"
+          password: "$INTEGRATION_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.integration.>", "rasid.integration.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.integration.>", "rasid.integration.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Compliance service
+        {
+          user: "svc_compliance"
+          password: "$COMPLIANCE_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.compliance.>", "rasid.compliance.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.compliance.>", "rasid.compliance.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+        # Config service
+        {
+          user: "svc_config"
+          password: "$CONFIG_PASS"
+          permissions: {
+            publish: {
+              allow: ["rasid.config.>", "rasid.config.dlq.>", "$JS.API.>"]
+            }
+            subscribe: {
+              allow: ["rasid.config.>", "rasid.config.dlq.>", "_INBOX.>", "$JS.API.>", "$JS.ACK.>"]
+            }
+          }
+        }
+      ]
+    }
+
+    # Logging
+    debug: false
+    trace: false
+    logtime: true
+---
+# NetworkPolicy — strict isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nats-isolation
+  namespace: rasid-eventbus
+spec:
+  podSelector:
+    matchLabels:
+      app: rasid-nats
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: rasid-eventbus
+    ports:
+    - protocol: TCP
+      port: 4222
+    - protocol: TCP
+      port: 8222
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+# Default deny for the namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: rasid-eventbus
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
