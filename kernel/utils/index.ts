@@ -17,6 +17,21 @@ import {
   KernelError,
 } from '../types/base';
 
+// ─── UUID Generation ────────────────────────────────────────
+
+/**
+ * Generate a v4-format UUID string.
+ * Uses a portable random generation approach without requiring
+ * Node.js crypto global or external dependencies.
+ */
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // ─── ID Generators ──────────────────────────────────────────
 
 export function createTenantId(value: string): TenantId {

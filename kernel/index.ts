@@ -32,3 +32,6 @@ export * from './utils/index';
 // ─── Contracts ─────────────────────────────────────────────
 export * from './contracts/module-contract';
 export * from './contracts/event-contract';
+
+// ─── Service Implementations ──────────────────────────────
+export * from './services/identity';
