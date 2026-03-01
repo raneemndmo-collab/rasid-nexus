@@ -1,0 +1,241 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-config
+  namespace: rasid-gateway
+data:
+  gateway.conf: |
+    # RASID API Gateway Configuration
+    # Rate Limiting: 100 req/min per client
+    # CORS: Restricted origins
+    # TLS: Termination at gateway
+    # Routes: Module-based path routing
+    
+    upstream_timeout: 30s
+    rate_limit: 100/min
+    cors_origins:
+      - "https://rasid.sa"
+      - "https://app.rasid.sa"
+    cors_methods: "GET,POST,PUT,DELETE,PATCH,OPTIONS"
+    cors_headers: "Authorization,Content-Type,X-Request-ID,X-Tenant-ID"
+    
+    routes:
+      /api/v1/kernel:    rasid-kernel.rasid-kernel.svc.cluster.local:8080
+      /api/v1/auth:      rasid-auth.rasid-auth.svc.cluster.local:8080
+      /api/v1/audit:     rasid-audit.rasid-audit.svc.cluster.local:8080
+      /api/v1/documents: rasid-documents.rasid-documents.svc.cluster.local:8080
+      /api/v1/workflow:  rasid-workflow.rasid-workflow.svc.cluster.local:8080
+      /api/v1/notifications: rasid-notifications.rasid-notifications.svc.cluster.local:8080
+      /api/v1/compliance: rasid-compliance.rasid-compliance.svc.cluster.local:8080
+      /api/v1/search:    rasid-search.rasid-search.svc.cluster.local:8080
+      /api/v1/config:    rasid-config.rasid-config.svc.cluster.local:8080
+    
+    security:
+      require_auth: true
+      require_tenant_id: true
+      blocked_paths:
+        - /admin
+        - /internal
+        - /debug
+        - /metrics
+      allowed_methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gateway-nginx
+  namespace: rasid-gateway
+data:
+  nginx.conf: |
+    worker_processes auto;
+    error_log /dev/stderr warn;
+    pid /tmp/nginx.pid;
+    
+    events {
+      worker_connections 1024;
+    }
+    
+    http {
+      log_format json_combined escape=json
+        '{"time":"$time_iso8601","remote_addr":"$remote_addr",'
+        '"request":"$request","status":$status,'
+        '"body_bytes_sent":$body_bytes_sent,'
+        '"request_time":$request_time,'
+        '"upstream_response_time":"$upstream_response_time",'
+        '"http_x_request_id":"$http_x_request_id",'
+        '"http_x_tenant_id":"$http_x_tenant_id"}';
+      
+      access_log /dev/stdout json_combined;
+      
+      # Rate limiting zone
+      limit_req_zone $binary_remote_addr zone=api_limit:10m rate=100r/m;
+      limit_req_status 429;
+      
+      # Security headers
+      add_header X-Frame-Options "DENY" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+      add_header Content-Security-Policy "default-src 'self'" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      
+      server {
+        listen 8080;
+        server_name _;
+        
+        # Health endpoint
+        location /health {
+          access_log off;
+          return 200 '{"status":"healthy","service":"rasid-gateway","timestamp":"$time_iso8601"}';
+          add_header Content-Type application/json;
+        }
+        
+        # Readiness endpoint
+        location /ready {
+          access_log off;
+          return 200 '{"status":"ready"}';
+          add_header Content-Type application/json;
+        }
+        
+        # Metrics endpoint (internal only)
+        location /metrics {
+          return 403 '{"error":"forbidden","message":"metrics endpoint is internal only"}';
+          add_header Content-Type application/json;
+        }
+        
+        # Block admin/internal paths
+        location /admin { return 403; }
+        location /internal { return 403; }
+        location /debug { return 403; }
+        
+        # CORS preflight
+        location / {
+          if ($request_method = 'OPTIONS') {
+            add_header 'Access-Control-Allow-Origin' '$http_origin';
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+            add_header 'Access-Control-Allow-Headers' 'Authorization, Content-Type, X-Request-ID, X-Tenant-ID';
+            add_header 'Access-Control-Max-Age' 3600;
+            add_header 'Content-Length' 0;
+            return 204;
+          }
+          
+          # Rate limiting
+          limit_req zone=api_limit burst=20 nodelay;
+          
+          # Default: no upstream configured yet
+          return 503 '{"error":"service_unavailable","message":"no upstream configured for this path"}';
+          add_header Content-Type application/json;
+        }
+        
+        # API routes (placeholder — upstreams not yet deployed)
+        location /api/v1/ {
+          limit_req zone=api_limit burst=20 nodelay;
+          
+          # Require X-Tenant-ID header
+          if ($http_x_tenant_id = '') {
+            return 400 '{"error":"bad_request","message":"X-Tenant-ID header required"}';
+          }
+          
+          return 503 '{"error":"service_unavailable","message":"backend modules not yet deployed"}';
+          add_header Content-Type application/json;
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rasid-gateway
+  namespace: rasid-gateway
+  labels:
+    app: rasid-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rasid-gateway
+  template:
+    metadata:
+      labels:
+        app: rasid-gateway
+    spec:
+      securityContext:
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+      containers:
+        - name: nginx
+          image: nginx:1.25-alpine
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache/nginx
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: gateway-nginx
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rasid-gateway
+  namespace: rasid-gateway
+spec:
+  selector:
+    app: rasid-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rasid-gateway-lb
+  namespace: rasid-gateway
+spec:
+  selector:
+    app: rasid-gateway
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+  type: LoadBalancer
