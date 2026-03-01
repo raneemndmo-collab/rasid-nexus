@@ -1,0 +1,52 @@
+##############################################################
+# RASID NEXUS — EU-0A-001 Terraform Variables Template
+# Copy this file to terraform.tfvars and fill in the values
+##############################################################
+
+# ============================================================
+# General
+# ============================================================
+
+# project_name = "rasid-nexus"
+# environment  = "production"
+# aws_region   = "me-south-1"
+
+# ============================================================
+# VPC
+# ============================================================
+
+# vpc_cidr           = "10.0.0.0/16"
+# availability_zones = ["me-south-1a", "me-south-1b", "me-south-1c"]
+# public_subnets     = ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
+# private_subnets    = ["10.0.11.0/24", "10.0.12.0/24", "10.0.13.0/24"]
+
+# ============================================================
+# EKS
+# ============================================================
+
+# cluster_version      = "1.31"
+# node_instance_types  = ["t3.medium"]
+# node_desired_size    = 3
+# node_min_size        = 3
+# node_max_size        = 5
+# node_disk_size       = 50
+
+# ============================================================
+# Security Hardening
+# ============================================================
+
+# enable_public_endpoint = false
+# allowed_public_cidrs   = []  # e.g., ["203.0.113.0/32"] for specific admin IP
+
+# ============================================================
+# Cost Guardrails
+# ============================================================
+
+# budget_monthly_limit_usd = 500
+# budget_alert_emails      = ["admin@example.com"]
+
+# ============================================================
+# Destruction Safeguard
+# ============================================================
+
+# enable_deletion_protection = true
